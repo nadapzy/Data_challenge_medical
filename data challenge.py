@@ -171,7 +171,7 @@ def npi_proc_vec_cos_sim(pivoted,cardio_NPI):
         npi_proc_cos_sim[label]=cosine_similarity(cardio_procs[i].reshape(1,len(cardio_procs[i])),npi_procs[i])[0]
     npi_proc_cos_sim=pd.DataFrame(data=npi_proc_cos_sim,index=pivoted.index)
     return npi_proc_cos_sim
-npi_proc_cos_sim=npi_proc_vec_cos_sim(pivoted)
+npi_proc_cos_sim=npi_proc_vec_cos_sim(pivoted,cardio_NPI)
 # now we have the cosine siimlarity 
 del pivoted
 
@@ -253,7 +253,6 @@ npi_prog=pd.merge(npi_prog,drug_cos_sim,how='left',left_index=True,right_index=T
 npi_prog=pd.merge(npi_prog,npi_drugs_sum,how='left',left_index=True,right_index=True)
 npi_prog=pd.merge(npi_prog,npi_drugs_diff_sum,how='left',left_index=True,right_index=True)
 npi_prog=pd.merge(npi_prog,npi_drugs_mat,how='left',left_index=True,right_index=True)
-
 
 del npi_proc,npi_specialty,npi_proc_cos_sim,npi_proc_final,cos_sim
 del npi_proc_sum,label
