@@ -79,11 +79,11 @@ def npi_bow(npi_proc,hcpcs_bow):
     npi_index=npi.index  #save the index for later
     npi_tot=npi.loc[:,[col for col in npi.columns if col.startswith('HCP_') and col.endswith('_tot')]]
     npi_avg=npi.loc[:,[col for col in npi.columns if col.startswith('HCP_') and col.endswith('_avg')]]
-    npi_proc=npi.loc[:,[col for col in npi.columns if  not col.startswith('HCP_') ]+['HCPCS_CODE','LINE_SRVC_CNT','BENE_UNIQUE_CNT']]
-    npi_proc.set_index(npi_index,inplace=True)
+#    npi_proc=npi.loc[:,[col for col in npi.columns if  not col.startswith('HCP_') ]+['HCPCS_CODE','LINE_SRVC_CNT','BENE_UNIQUE_CNT']]
+#    npi_proc.set_index(npi_index,inplace=True)
     #del npi
-    return npi_tot,npi_avg,npi_proc,npi_index
-npi_tot,npi_avg,npi_proc,npi_index=npi_bow(npi_proc,hcpcs_bow)
+    return npi_tot,npi_avg,npi_index
+npi_tot,npi_avg,npi_index=npi_bow(npi_proc,hcpcs_bow)
 
 #npi_proc = pd.read_csv( "npi_proc_counts.csv", header=0, sep=",", quoting=2)
 #preparing for the bag of words for cardio HCPCS desc
@@ -97,12 +97,12 @@ npi_tot,npi_avg,npi_proc,npi_index=npi_bow(npi_proc,hcpcs_bow)
 print('Starting to generate cardio physicians HCPCS bag of words...')
 cardio_NPI=npi_specialty[npi_specialty.target==1]
 npi_proc_cardio=npi_proc[npi_proc.NPI.isin(cardio_NPI.NPI.values)]
+npi_proc_cardio.reset_index(inplace=True)
 
 def cardio_bows(npi_proc_cardio):
     cardio_bow=npi_proc_cardio.merge(hcpcs_bow,how='inner',on='HCPCS_CODE',suffixes=('',"_hcpcs"),copy=False)
     cardio_bow.drop(['HCPCS_CODE','LINE_SRVC_CNT','BENE_UNIQUE_CNT'],axis=1)
-    grouped=cardio_bow.groupby(by='NPI')
-    cardio_vec=grouped.sum()
+    cardio_vec=cardio_bow.groupby(by='NPI').sum()
     for column in cardio_vec.columns:
         if column.startswith('HCP_'):
             cardio_vec['Tot_'+column]=cardio_vec[column]*cardio_vec.LINE_SRVC_CNT
@@ -177,7 +177,7 @@ del pivoted
 
 
 #NPI_PROC 3: total # of procedures, # of unique patients, # of procedure/patients by NPI
-print('Starting to calculate total \# of procedures, \# of unique patients, \# of procedure\/patients by NPI...')
+print('Starting to calculate total # of procedures, # of unique patients, # of procedure/patients by NPI...')
 npi_proc_sum=npi_proc.groupby(by='NPI').sum()
 npi_proc_sum['Avg_serv_pat']=npi_proc_sum.LINE_SRVC_CNT/npi_proc_sum.BENE_UNIQUE_CNT
 
