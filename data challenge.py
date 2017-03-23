@@ -266,7 +266,7 @@ del drug_cos_sim,npi_drugs_sum,npi_drugs_diff_sum,npi_drugs_mat
 #test run for random forest
 print('Starting to train models')
 from sklearn.ensemble import RandomForestClassifier,GradientBoostingClassifier
-from sklearn.linear_model import LogisticRegressionCV,LogisticRegression
+from sklearn.linear_model import LogisticRegressionCV,LogisticRegression,SGDClassifier
 from sklearn.metrics import accuracy_score,confusion_matrix,precision_score,recall_score
 from sklearn.model_selection import GridSearchCV,StratifiedShuffleSplit,cross_val_score
 import matplotlib.pyplot as plt
@@ -291,7 +291,7 @@ def model_fit(alg, X_train, y_train, performCV=True, cv_score='recall', printFea
     print "Accuracy : %.4g" % accuracy_score(y_train, dtrain_predictions)
     print "Precision : %.4g" % precision_score(y_train, dtrain_predictions)
     print "Recall : %.4g" % recall_score(y_train, dtrain_predictions)
-    print "Confusion Matrix (Train): %f" % confusion_matrix(y_train, dtrain_predictions)
+    print("Confusion Matrix (Train): ", confusion_matrix(y_train, dtrain_predictions))
     
     if performCV:
         print "CV Score : Mean - %.7g | Std - %.7g | Min - %.7g | Max - %.7g" % (np.mean(cv_score),np.std(cv_score),np.min(cv_score),np.max(cv_score))
@@ -303,10 +303,10 @@ def model_fit(alg, X_train, y_train, performCV=True, cv_score='recall', printFea
         plt.ylabel('Feature Importance Score')    
 # ****************************************************************
 
-        
-#log=LogisticRegression(n_jobs=-1,solver='sag',warm_start=True)
-rf=RandomForestClassifier(n_jobs=-1,oob_score=True,max_features='sqrt',random_state=25)
-gbc=GradientBoostingClassifier(warm_start=True,max_features='sqrt',random_state=25)
+seed=25  
+log=SGDClassifier(loss='log',n_jobs=-1,n_iter=3,warm_start=True)
+rf=RandomForestClassifier(n_jobs=-1,oob_score=True,max_features='sqrt',random_state=seed)
+gbc=GradientBoostingClassifier(warm_start=True,max_features='sqrt',random_state=seed)
 
 
 
@@ -315,13 +315,28 @@ gbc=GradientBoostingClassifier(warm_start=True,max_features='sqrt',random_state=
 #print(confusion_matrix(npi_prog.iloc[:,-1],y_pred))
 #print(precision_score(npi_prog.iloc[:,-1],y_pred))
 #print(recall_score(npi_prog.iloc[:,-1],y_pred))
-
+#feature_imp=zip(npi_prog.iloc[:,:-2].columns,rf.feature_importances_)
+#print(sorted(feature_imp,key=lambda x:x[1],reverse=True))
 
 cv=StratifiedShuffleSplit(n_splits=3,test_size=0.1,random_state=25)
 models=[rf,gbc]
 for model in models:
-    model_fit(model,npi_prog,y,performCV=True,cv=cv)
+    pass
+#    model_fit(model,npi_prog,y,performCV=True,cv=cv)     
+#########################  CV recall for RF: 0.9788 
+#########################  CV recall for GBM: 0.9155
+#########################  CV recall for LOG-L2: 
+
+cv_scorelog = cross_val_score(log, npi_prog,y, cv=cv, scoring='recall')
+
+#cv_score = cross_val_score(rf, npi_prog,y, cv=cv, scoring='recall')
 
 #
-feature_imp=zip(npi_prog.iloc[:,:-2].columns,rf.feature_importances_)
-print(sorted(feature_imp,key=lambda x:x[1],reverse=True))
+param_grid={'n_estimators':[100,300,1000,3000,10000],'max_features':['sqrt','log2']}
+gs_rf=GridSearchCV(rf,param_grid=param_grid,n_jobs=-1,cv=cv,scoring='recall')
+
+#gs_rf.fit(npi_prog,y)
+print(gs_rf.best_params_,gs_rf.best_score_)
+
+
+
