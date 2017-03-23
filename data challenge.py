@@ -290,7 +290,7 @@ def model_fit(alg, X_train, y_train, performCV=True, cv_score='recall', printFea
     print "Accuracy : %.4g" % accuracy_score(y_train, dtrain_predictions)
     print "Precision : %.4g" % precision_score(y_train, dtrain_predictions)
     print "Recall : %.4g" % recall_score(y_train, dtrain_predictions)
-    print "Confusion Matrix (Train): %f" % confusion_matrix(y_train, dtrain_predprob)
+    print "Confusion Matrix (Train): %f" % confusion_matrix(y_train, dtrain_predictions)
     
     if performCV:
         print "CV Score : Mean - %.7g | Std - %.7g | Min - %.7g | Max - %.7g" % (np.mean(cv_score),np.std(cv_score),np.min(cv_score),np.max(cv_score))
