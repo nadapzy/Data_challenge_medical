@@ -7,10 +7,10 @@ Created on Mon Mar 20 22:14:25 2017
 
 import pandas as pd
 import re
-from nltk.corpus import stopwords
+#from nltk.corpus import stopwords
 #import nltk.data
 import numpy as np
-from sklearn.feature_extraction.text import CountVectorizer,TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from imblearn.under_sampling import RandomUnderSampler
@@ -24,13 +24,16 @@ npi_specialty = pd.read_csv("npi_specialty.csv",header=0,sep=',',quoting=2)
 npi_specialty['target']=npi_specialty['specialty']=='Cardiology'
 npi_specialty.drop(['specialty'],inplace=True,axis=1)
 print('In total, the data have {0} cardiologists among a total of {1} physicians'\
-.format(npi_specialty[npi_specialty.target==True].NPI.unique().size,npi_specialty.NPI.unique().size))
+.format(npi_specialty[npi_specialty.target==True].NPI.unique().size,npi_specialty.NPI.nunique()))
 
 
 #resampling until we get the ratio of cardio vs. non-cardio to 0.5
-rus=RandomUnderSampler(ratio=0.5,random_state=25,replacement=False)
+undersample_ratio=0.5
+rus=RandomUnderSampler(ratio=undersample_ratio,random_state=25,replacement=False)
 x_res,_=rus.fit_sample(npi_specialty.NPI.values.reshape(len(npi_specialty),1),npi_specialty.target.values)
 npi_proc=npi_proc[npi_proc.NPI.isin(x_res[:,0])]
+print('However due to time limit, we only sampled {0} out of {1} physicians.'.format(len(x_res),npi_specialty.NPI.nunique()))
+
 
 def preprocessor(desc):
     return re.sub("[^a-zA-Z]"," ", desc.lower())
@@ -49,6 +52,7 @@ def hcpcs_words(hcpcs):
     #cardio_bows= vectorizer.transform()
     print('Print the list of all words in the bag...')
     vocab=vectorizer.get_feature_names()
+    print(vocab)
     
     #generate bag of words for each HCPCS code
     df_vocab=pd.DataFrame(data=hcpcs_bows.toarray(),columns=['HCP_'+word.strip() for word in vocab])
@@ -61,6 +65,7 @@ del hcpcs
 
 ############################ NPI_PROC w/ HCPCS #########################
 # 0. NPI_PROC w/ HCPCS 0: all doctors bag of words from NPI_PROC table
+print('Starting to generate all physicians HCPCS bag of words...')
 def npi_bow(npi_proc,hcpcs_bow):
     npi=npi_proc.merge(hcpcs_bow,how='inner',on='HCPCS_CODE',suffixes=('',"_hcpcs"),copy=False)
     #del npi_proc
@@ -89,6 +94,7 @@ npi_tot,npi_avg,npi_proc,npi_index=npi_bow(npi_proc,hcpcs_bow)
 
 
 # 0. NPI_PROC w/ HCPCS 0: cardiology doctors bag of words from NPI_PROC table
+print('Starting to generate cardio physicians HCPCS bag of words...')
 cardio_NPI=npi_specialty[npi_specialty.target==1]
 npi_proc_cardio=npi_proc[npi_proc.NPI.isin(cardio_NPI.NPI.values)]
 
@@ -111,6 +117,7 @@ cardio_vec_tot,cardio_vec_avg,cardio_vec_pat=cardio_bows(npi_proc_cardio)
 del npi_proc_cardio
 
 # NPI_PROC 1: cosine similarity between bags of words of all doctors and carido doctors 
+print('Starting to calculate consine similarity of BOWs of cardio physicians and cardio physicians...')
 def bow_hcpcs(cardio_vec_tot,cardio_vec_avg,cardio_vec_pat,npi_index):
     cos_sim={}
     i=0
@@ -125,6 +132,7 @@ cos_sim=bow_hcpcs(cardio_vec_tot,cardio_vec_avg,cardio_vec_pat,npi_index)
 
 
 # NPI_PROC 2: cosine similarity between procedures matrices of all doctors and cardio doctors (procedure count and patients count)
+print('Starting to calculate cosine similarity between procedures matrices of all doctors and cardio doctors (count)...')
 def transpose_npi_proc(npi_proc):
     grouped=npi_proc.groupby(by=['NPI','HCPCS_CODE'])
     #grouped.sum().reset_index().pivot(index='NPI',columns='HCPCS_CODE')
@@ -139,6 +147,7 @@ pivoted=transpose_npi_proc(npi_proc)
 npi_proc_final=pivoted.copy()
 
 # start with building the vector for cardiologist procedurs
+print('Starting to build the vector for cardiologist procedurs')
 def npi_proc_vec_cos_sim(pivoted,cardio_NPI):
     cardio_proc=pivoted[pivoted.index.isin(cardio_NPI.NPI.values)]
     for column in cardio_proc.columns:
@@ -168,12 +177,15 @@ del pivoted
 
 
 #NPI_PROC 3: total # of procedures, # of unique patients, # of procedure/patients by NPI
+print('Starting to calculate total \# of procedures, \# of unique patients, \# of procedure\/patients by NPI...')
 npi_proc_sum=npi_proc.groupby(by='NPI').sum()
 npi_proc_sum['Avg_serv_pat']=npi_proc_sum.LINE_SRVC_CNT/npi_proc_sum.BENE_UNIQUE_CNT
 
 ############################ DRUG #########################
 #very important things about drugs's data: not all doctors have prescriptions...
 #drug 1: cosine similarity of drug usage
+print('--------------Start to analyze drugs----------------')
+print('Starting to calculate cosine similarity of drug usage')
 def transpose_drugs(df,select_column=False):
     grouped=df.groupby(by=['NPI','GENERIC_NAME']).sum().unstack(level=-1)
     if select_column:
@@ -213,6 +225,7 @@ npi_drugs_sum=npi_drugs.groupby(by='NPI').agg({'TOTAL_CLAIM_COUNT':'nunique','DR
 #npi_drugs_sum.columns=['total_drugs']
 
 # drug 3: % of generric drugs used; # of generic drugs used by NPI
+print('Starting to calculate cosine similarity of drug usage')
 def npi_drugs_matrix(npi_drugs):
     npi_drugs['G_B']=npi_drugs['DRUG_NAME']==npi_drugs['GENERIC_NAME']
     npi_drugs['G_B_sum']=npi_drugs['G_B']*npi_drugs.TOTAL_CLAIM_COUNT
@@ -226,6 +239,7 @@ npi_drugs_mat=transpose_drugs(npi_drugs,select_column=True)
 del npi_drugs
 
 #combine what we have so far:
+print('Starting to combining all dataframes')
 npi_prog=pd.merge(npi_proc_cos_sim,npi_proc_final,left_index=True,right_index=True)
 npi_prog=pd.merge(npi_prog,cos_sim,left_index=True,right_index=True)
 npi_prog=pd.merge(npi_prog,npi_proc_sum,left_index=True,right_index=True)
@@ -242,10 +256,11 @@ npi_prog=pd.merge(npi_prog,npi_drugs_mat,how='left',left_index=True,right_index=
 
 
 del npi_proc,npi_specialty,npi_proc_cos_sim,npi_proc_final,cos_sim
-del npi_proc_sum,npi_specialty,label
+del npi_proc_sum,label
 del drug_cos_sim,npi_drugs_sum,npi_drugs_diff_sum,npi_drugs_mat
 
 #test run for random forest
+print('Starting to train models')
 from sklearn.ensemble import RandomForestClassifier,GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegressionCV,LogisticRegression
 from sklearn.metrics import accuracy_score,confusion_matrix,precision_score,recall_score
@@ -285,7 +300,7 @@ def model_fit(alg, X_train, y_train, performCV=True, cv_score='recall', printFea
 # ****************************************************************
 
         
-log=LogisticRegression(n_jobs=-1,solver='sag',warm_start=True)
+#log=LogisticRegression(n_jobs=-1,solver='sag',warm_start=True)
 rf=RandomForestClassifier(n_jobs=-1,oob_score=True,max_features='sqrt',random_state=25)
 gbc=GradientBoostingClassifier(warm_start=True,max_features='sqrt',random_state=25)
 
@@ -299,7 +314,7 @@ gbc=GradientBoostingClassifier(warm_start=True,max_features='sqrt',random_state=
 
 npi_prog.fillna(value=0,inplace=True)
 cv=StratifiedShuffleSplit(n_splits=3,test_size=0.1,random_state=25)
-models=[log,rf,gbc]
+models=[rf,gbc]
 for model in models:
     model_fit(model,npi_prog,y,performCV=True,cv=cv)
 
