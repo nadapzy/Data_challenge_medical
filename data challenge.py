@@ -254,6 +254,8 @@ npi_prog=pd.merge(npi_prog,npi_drugs_sum,how='left',left_index=True,right_index=
 npi_prog=pd.merge(npi_prog,npi_drugs_diff_sum,how='left',left_index=True,right_index=True)
 npi_prog=pd.merge(npi_prog,npi_drugs_mat,how='left',left_index=True,right_index=True)
 
+npi_prog.to_csv('npi_prog.csv',sep=',')
+y.to_csv('y.csv',sep=',')
 
 del npi_proc,npi_specialty,npi_proc_cos_sim,npi_proc_final,cos_sim
 del npi_proc_sum,label
