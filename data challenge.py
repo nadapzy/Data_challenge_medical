@@ -322,7 +322,7 @@ def model_fit(alg, X, y, performCV=True, cv_score='recall', printFeatureImportan
 
 ########################### Logistics Regression, Random Forecast and XGBOOST ################# 
 seed=25  
-log=SGDClassifier(loss='log',n_jobs=-1,n_iter=3,warm_start=True)
+log=SGDClassifier(loss='log',n_jobs=-1,n_iter=5,warm_start=True)
 rf=RandomForestClassifier(n_jobs=-1,oob_score=True,max_features='sqrt',random_state=seed)
 #gbc=GradientBoostingClassifier(warm_start=True,max_features='sqrt',random_state=seed)
 xgmodel = xgb.XGBClassifier(learning_rate =0.1,n_estimators=100,max_depth=3,min_child_weight=6\
@@ -340,8 +340,9 @@ if fit_model:
 #########################  CV recall for XGBOOST: 0.9155
 #########################  CV recall for LOG-L2: 0.6333
 
-cv_scorerf = cross_val_score(rf, npi_prog,y, cv=cv, scoring='precision')
-feat_imp_rf=model_fit(rf,npi_prog,y,performCV=False,cv=cv)     
+#cv_scorerf = cross_val_score(rf, npi_prog,y, cv=cv, scoring='precision')
+#feat_imp_rf=model_fit(rf,npi_prog,y,performCV=False,cv=cv)     
+#feat_imp_log=model_fit(log,npi_prog,y,performCV=False,cv=cv)     
 
 
 ######################## Feature Importance  #################
@@ -353,10 +354,14 @@ if feature_importance:
     
     
 ######################## GridSearch Performing #################
-param_grid={'n_estimators':[100,300,500,700],'max_features':['sqrt','log2'],'max_depth':[3,5,7,9],'min_samples_leaf':[0.0,0.1,0.2]}
-gs_rf=GridSearchCV(rf,param_grid=param_grid,n_jobs=-1,cv=cv,scoring='recall')
-grid_search=False
+param_grid_rf={'n_estimators':[100,300,500,700],'max_features':['sqrt','log2'],'max_depth':[3,5,7,9],'min_samples_leaf':[0.0,0.1,0.2]}
+gs_rf=GridSearchCV(rf,param_grid=param_grid_rf,n_jobs=-1,cv=cv,scoring='recall')
+
+param_grid_log={'alpha':[0.00003,0.0001,0.0003,0.001,0.003],'n_iter':[3,5,7,9]}
+gs_log=GridSearchCV(log,param_grid=param_grid_log,n_jobs=-1,cv=cv,scoring='recall')
+
+grid_search=True
 if grid_search:
-    gs_rf.fit(npi_prog,y)
-print(gs_rf.best_params_,gs_rf.best_score_)
+    gs_log.fit(npi_prog,y)
+print(gs_log.best_params_,gs_rf.best_score_)
 
