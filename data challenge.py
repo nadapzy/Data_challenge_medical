@@ -259,7 +259,7 @@ label=npi_specialty[npi_specialty.NPI.isin(x_res[:,0])]
 npi_prog=pd.merge(npi_prog,label,left_index=True,right_on='NPI')
 
 y=npi_prog.target.copy()
-npi_prog.drop(['NPI','target'],axis=1)
+npi_prog.drop(['NPI','target'],axis=1,inplace=True)
 
 # combine drugs
 npi_prog=pd.merge(npi_prog,drug_cos_sim,how='left',left_index=True,right_index=True)
@@ -300,7 +300,7 @@ def model_fit(alg, X, y, performCV=True, cv_score='recall', printFeatureImportan
     
     #Perform cross-validation:
     if performCV:
-        cv_score = cross_val_score(alg, X_train,y_train, cv=cv, scoring=cv_score)
+        cv_score = cross_val_score(alg, X_train,y_train, cv=cv, scoring=cv_score,n_jobs=2)
     
     #Print model report:
     print "\nModel Report"
@@ -318,7 +318,7 @@ def model_fit(alg, X, y, performCV=True, cv_score='recall', printFeatureImportan
         feat_imp.plot(kind='bar', title='Feature Importances')
         plt.ylabel('Feature Importance Score')    
 # ****************************************************************
-
+    return feat_imp
 
 ########################### Logistics Regression, Random Forecast and XGBOOST ################# 
 seed=25  
@@ -335,12 +335,13 @@ if fit_model:
     models=[rf,xgmodel]
     for model in models:
         model_fit(model,npi_prog,y,performCV=True,cv=cv)     
+        
 #########################  CV recall for RF: 0.9788     precision 0.99235
 #########################  CV recall for XGBOOST: 0.9155
 #########################  CV recall for LOG-L2: 0.6333
 
 cv_scorerf = cross_val_score(rf, npi_prog,y, cv=cv, scoring='precision')
-model_fit(rf,npi_prog,y,performCV=False,cv=cv)     
+feat_imp_rf=model_fit(rf,npi_prog,y,performCV=False,cv=cv)     
 
 
 ######################## Feature Importance  #################
@@ -359,7 +360,3 @@ if grid_search:
     gs_rf.fit(npi_prog,y)
 print(gs_rf.best_params_,gs_rf.best_score_)
 
-
-
-    
-    
