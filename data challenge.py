@@ -7,14 +7,10 @@ Created on Mon Mar 20 22:14:25 2017
 
 import pandas as pd
 import re
-#from nltk.corpus import stopwords
-#import nltk.data
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-
 from imblearn.under_sampling import RandomUnderSampler
-#nltk.download()  
 
 # Read data from files 
 npi_proc = pd.read_csv( "npi_proc_counts.csv", header=0, sep=",", quoting=2)
@@ -35,6 +31,7 @@ npi_proc=npi_proc[npi_proc.NPI.isin(x_res[:,0])]
 print('However due to time limit, we only sampled {0} out of {1} physicians.'.format(len(x_res),npi_specialty.NPI.nunique()))
 
 
+############################# Generating bags of words from HCPCS description ############
 def preprocessor(desc):
     return re.sub("[^a-zA-Z]"," ", desc.lower())
 vectorizer = TfidfVectorizer(analyzer = "word",   \
@@ -64,7 +61,7 @@ del hcpcs
 
 
 ############################ NPI_PROC w/ HCPCS #########################
-# 0. NPI_PROC w/ HCPCS 0: all doctors bag of words from NPI_PROC table
+# Preparation. NPI_PROC w/ HCPCS 0: all doctors bag of words from NPI_PROC table
 print('Starting to generate all physicians HCPCS bag of words...')
 def npi_bow(npi_proc,hcpcs_bow):
     npi=npi_proc.merge(hcpcs_bow,how='inner',on='HCPCS_CODE',suffixes=('',"_hcpcs"),copy=False)
@@ -84,16 +81,11 @@ def npi_bow(npi_proc,hcpcs_bow):
     #del npi
     return npi_tot,npi_avg,npi_index
 npi_tot,npi_avg,npi_index=npi_bow(npi_proc,hcpcs_bow)
-
-#npi_proc = pd.read_csv( "npi_proc_counts.csv", header=0, sep=",", quoting=2)
-#preparing for the bag of words for cardio HCPCS desc
-
-#reproduce the list of cardiologist 
-#npi_proc = pd.read_csv( "npi_proc_counts.csv", header=0, sep=",", quoting=2)
-#npi_proc=npi_proc[npi_proc.NPI.isin(x_res[:,0])]
+# All doctors BOWs
 
 
-# 0. NPI_PROC w/ HCPCS 0: cardiology doctors bag of words from NPI_PROC table
+
+# Praparation. NPI_PROC w/ HCPCS 0: cardiology doctors bag of words from NPI_PROC table
 print('Starting to generate cardio physicians HCPCS bag of words...')
 cardio_NPI=npi_specialty[npi_specialty.target==1]
 npi_proc_cardio=npi_proc[npi_proc.NPI.isin(cardio_NPI.NPI.values)]
@@ -114,7 +106,10 @@ def cardio_bows(npi_proc_cardio):
     cardio_vec_pat=cardio_vec.loc[:,[col for col in cardio_vec.columns if col.startswith('Pat_HCP_')]].values.mean(axis=0)
     return cardio_vec_tot,cardio_vec_avg,cardio_vec_pat
 cardio_vec_tot,cardio_vec_avg,cardio_vec_pat=cardio_bows(npi_proc_cardio)
+# cardio doctors BOWs
 del npi_proc_cardio
+
+
 
 # NPI_PROC 1: cosine similarity between bags of words of all doctors and carido doctors 
 print('Starting to calculate consine similarity of BOWs of cardio physicians and cardio physicians...')
@@ -129,6 +124,7 @@ def bow_hcpcs(cardio_vec_tot,cardio_vec_avg,cardio_vec_pat,npi_index):
     cos_sim=pd.DataFrame(data=cos_sim,index=npi_index)
     return cos_sim
 cos_sim=bow_hcpcs(cardio_vec_tot,cardio_vec_avg,cardio_vec_pat,npi_index)
+# Now we have cosine similarity of BOWS of doctors vs. cardio
 
 
 # NPI_PROC 2: cosine similarity between procedures matrices of all doctors and cardio doctors (procedure count and patients count)
@@ -183,6 +179,8 @@ npi_proc_sum['Avg_serv_pat']=npi_proc_sum.LINE_SRVC_CNT/npi_proc_sum.BENE_UNIQUE
 
 ############################ DRUG #########################
 #very important things about drugs's data: not all doctors have prescriptions...
+
+########################### Drug 1 ################# 
 #drug 1: cosine similarity of drug usage
 print('--------------Start to analyze drugs----------------')
 print('Starting to calculate cosine similarity of drug usage')
@@ -218,21 +216,26 @@ def drug_cos_sim_gen(npi_drugs,cardio_NPI):
     drug_cos_sim=pd.DataFrame(drug_cos_sim,index=npi_drugs_index,columns=['drug_cos_sim'])
     return drug_cos_sim
 drug_cos_sim=drug_cos_sim_gen(npi_drugs,cardio_NPI)    
+# cosine similarity Done!
 del cardio_NPI
     
+
+########################### Drug 2 ################# 
 #drug 2: # of distinct brand used, # of distinct generic used, # of total drugs used by NPI
     # 3 columns
 npi_drugs_sum=npi_drugs.groupby(by='NPI').agg({'TOTAL_CLAIM_COUNT':'nunique','DRUG_NAME':'nunique','GENERIC_NAME':'nunique'})
-#npi_drugs_sum.columns=['total_drugs']
 
 
+########################### Drug 3 ################# 
 # drug 3: build a NPI vs. durgs matrix
 # column names: generic names 
 npi_drugs_mat=transpose_drugs(npi_drugs,select_column=True)
 
+
+########################### Drug 4 ################# 
 # drug 4: % of generric drugs used; # of generic drugs used by NPI
 # 6 columns
-print('Starting to calculate cosine similarity of drug usage')
+print('Starting to calculate % of generric drugs used; # of generic drugs used by NPI')
 def npi_drugs_matrix(npi_drugs):
     npi_drugs['G_B']=npi_drugs['DRUG_NAME']==npi_drugs['GENERIC_NAME']
     npi_drugs['G_B_sum']=npi_drugs['G_B']*npi_drugs.TOTAL_CLAIM_COUNT
@@ -244,8 +247,11 @@ npi_drugs_diff_sum=npi_drugs_matrix(npi_drugs)
 
 del npi_drugs
 
+
+########################### Combine all metrics ################# 
 #combine what we have so far:
 print('Starting to combining all dataframes')
+# combine procedures
 npi_prog=pd.merge(npi_proc_cos_sim,npi_proc_final,left_index=True,right_index=True)
 npi_prog=pd.merge(npi_prog,cos_sim,left_index=True,right_index=True)
 npi_prog=pd.merge(npi_prog,npi_proc_sum,left_index=True,right_index=True)
@@ -255,14 +261,15 @@ npi_prog=pd.merge(npi_prog,label,left_index=True,right_on='NPI')
 y=npi_prog.target.copy()
 npi_prog.drop(['NPI','target'],axis=1)
 
+# combine drugs
 npi_prog=pd.merge(npi_prog,drug_cos_sim,how='left',left_index=True,right_index=True)
 npi_prog=pd.merge(npi_prog,npi_drugs_sum,how='left',left_index=True,right_index=True)
 npi_prog=pd.merge(npi_prog,npi_drugs_diff_sum,how='left',left_index=True,right_index=True)
 npi_prog=pd.merge(npi_prog,npi_drugs_mat,how='left',left_index=True,right_index=True)
 
-
 npi_prog.fillna(value=0,inplace=True)
 
+# output X, Y matrics
 #npi_prog.to_csv('npi_prog.csv',sep=',')
 #y.to_csv('y.csv',sep=',')
 
@@ -270,7 +277,7 @@ del npi_proc,npi_specialty,npi_proc_cos_sim,npi_proc_final,cos_sim
 del npi_proc_sum,label
 del drug_cos_sim,npi_drugs_sum,npi_drugs_diff_sum,npi_drugs_mat
 
-#test run for random forest
+########################### Start to Model Data ################# 
 print('Starting to train models')
 from sklearn.ensemble import RandomForestClassifier,GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegressionCV,LogisticRegression,SGDClassifier
@@ -282,7 +289,6 @@ def model_fit(alg, X_train, y_train, performCV=True, cv_score='recall', printFea
     # function to diagnose the fit of model
     # we have precision in cross validation as the main metric, along with area under ROC, accuracy and recall.    
     # in the meanwhile, we will plot a feature importance chart
-
     #Fit the algorithm on the data
     alg.fit(X_train, y_train)
         
@@ -292,7 +298,7 @@ def model_fit(alg, X_train, y_train, performCV=True, cv_score='recall', printFea
     
     #Perform cross-validation:
     if performCV:
-        cv_score = cross_val_score(alg, X_train,y_train, cv=cv, scoring=cv_score)
+        cv_score = cross_val_score(alg, X_train,y_train, cv=cv, scoring=cv_score,n_jobs=-1)
     
     #Print model report:
     print "\nModel Report"
@@ -311,43 +317,47 @@ def model_fit(alg, X_train, y_train, performCV=True, cv_score='recall', printFea
         plt.ylabel('Feature Importance Score')    
 # ****************************************************************
 
+
+########################### Logistics Regression, Random Forecast and XGBOOST ################# 
 seed=25  
 log=SGDClassifier(loss='log',n_jobs=-1,n_iter=3,warm_start=True)
 rf=RandomForestClassifier(n_jobs=-1,oob_score=True,max_features='sqrt',random_state=seed)
 #gbc=GradientBoostingClassifier(warm_start=True,max_features='sqrt',random_state=seed)
-xgmodel = xgb.XGBClassifier(learning_rate =0.1,n_estimators=300,max_depth=3,min_child_weight=6\
+xgmodel = xgb.XGBClassifier(learning_rate =0.1,n_estimators=100,max_depth=3,min_child_weight=6\
                             ,gamma=0,subsample=0.85,colsample_bytree=0.65,\
                             objective= 'binary:logistic',nthread=-1,scale_pos_weight=1,seed=seed)
-
-
-#rf.fit(npi_prog.iloc[:,:-2],npi_prog.iloc[:,-1])
-#y_pred=rf.predict(npi_prog.iloc[:,:-2])
-#print(confusion_matrix(npi_prog.iloc[:,-1],y_pred))
-#print(precision_score(npi_prog.iloc[:,-1],y_pred))
-#print(recall_score(npi_prog.iloc[:,-1],y_pred))
-#feature_imp=zip(npi_prog.iloc[:,:-2].columns,rf.feature_importances_)
-#print(sorted(feature_imp,key=lambda x:x[1],reverse=True))
-
 cv=StratifiedShuffleSplit(n_splits=3,test_size=0.1,random_state=25)
-models=[rf,xgmodel]
-for model in models:
-    pass
-#    model_fit(model,npi_prog,y,performCV=True,cv=cv)     
+
+fit_model=False
+if fit_model:
+    models=[rf,xgmodel]
+    for model in models:
+        model_fit(model,npi_prog,y,performCV=True,cv=cv)     
 #########################  CV recall for RF: 0.9788 
-#########################  CV recall for GBM: 0.9155
-#########################  CV recall for LOG-L2: 
+#########################  CV recall for XGBOOST: 0.9155
+#########################  CV recall for LOG-L2: 0.6333
 
-#cv_scorelog = cross_val_score(log, npi_prog,y, cv=cv, scoring='recall')
-cv_scorexgb = cross_val_score(xgmodel, npi_prog,y, cv=cv, scoring='recall')
+cv_scorerf = cross_val_score(rf, npi_prog,y, cv=cv, scoring='precision')
+model_fit(model,npi_prog,y,performCV=True,cv=cv)     
 
-#cv_score = cross_val_score(rf, npi_prog,y, cv=cv, scoring='recall')
 
-#
-param_grid={'n_estimators':[100,300,500,700],'max_features':['sqrt','log2']}
+######################## Feature Importance  #################
+feature_importance=True
+if feature_importance:
+    rf.fit(npi_prog,y)
+    feature_imp=zip(npi_prog.columns,rf.feature_importances_)
+    print(sorted(feature_imp,key=lambda x:x[1],reverse=True))
+    
+    
+######################## GridSearch Performing #################
+param_grid={'n_estimators':[100,300,500,700],'max_features':['sqrt','log2'],'max_depth':[3,5,7,9],'min_samples_leaf':[0.0,0.1,0.2]}
 gs_rf=GridSearchCV(rf,param_grid=param_grid,n_jobs=-1,cv=cv,scoring='recall')
-
-#gs_rf.fit(npi_prog,y)
+grid_search=False
+if grid_search:
+    gs_rf.fit(npi_prog,y)
 print(gs_rf.best_params_,gs_rf.best_score_)
 
 
 
+    
+    
