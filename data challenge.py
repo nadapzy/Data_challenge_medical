@@ -221,10 +221,17 @@ drug_cos_sim=drug_cos_sim_gen(npi_drugs,cardio_NPI)
 del cardio_NPI
     
 #drug 2: # of distinct brand used, # of distinct generic used, # of total drugs used by NPI
+    # 3 columns
 npi_drugs_sum=npi_drugs.groupby(by='NPI').agg({'TOTAL_CLAIM_COUNT':'nunique','DRUG_NAME':'nunique','GENERIC_NAME':'nunique'})
 #npi_drugs_sum.columns=['total_drugs']
 
-# drug 3: % of generric drugs used; # of generic drugs used by NPI
+
+# drug 3: build a NPI vs. durgs matrix
+# column names: generic names 
+npi_drugs_mat=transpose_drugs(npi_drugs,select_column=True)
+
+# drug 4: % of generric drugs used; # of generic drugs used by NPI
+# 6 columns
 print('Starting to calculate cosine similarity of drug usage')
 def npi_drugs_matrix(npi_drugs):
     npi_drugs['G_B']=npi_drugs['DRUG_NAME']==npi_drugs['GENERIC_NAME']
@@ -234,8 +241,7 @@ def npi_drugs_matrix(npi_drugs):
     return npi_drugs_diff_sum
 npi_drugs_diff_sum=npi_drugs_matrix(npi_drugs)
 
-# drug 4: build a NPI vs. durgs matrix
-npi_drugs_mat=transpose_drugs(npi_drugs,select_column=True)
+
 del npi_drugs
 
 #combine what we have so far:
@@ -254,6 +260,7 @@ npi_prog=pd.merge(npi_prog,npi_drugs_sum,how='left',left_index=True,right_index=
 npi_prog=pd.merge(npi_prog,npi_drugs_diff_sum,how='left',left_index=True,right_index=True)
 npi_prog=pd.merge(npi_prog,npi_drugs_mat,how='left',left_index=True,right_index=True)
 
+
 npi_prog.fillna(value=0,inplace=True)
 
 #npi_prog.to_csv('npi_prog.csv',sep=',')
@@ -269,6 +276,7 @@ from sklearn.ensemble import RandomForestClassifier,GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegressionCV,LogisticRegression,SGDClassifier
 from sklearn.metrics import accuracy_score,confusion_matrix,precision_score,recall_score
 from sklearn.model_selection import GridSearchCV,StratifiedShuffleSplit,cross_val_score
+import xgboost as xgb
 import matplotlib.pyplot as plt
 def model_fit(alg, X_train, y_train, performCV=True, cv_score='recall', printFeatureImportance=True, cv=3):
     # function to diagnose the fit of model
@@ -306,8 +314,10 @@ def model_fit(alg, X_train, y_train, performCV=True, cv_score='recall', printFea
 seed=25  
 log=SGDClassifier(loss='log',n_jobs=-1,n_iter=3,warm_start=True)
 rf=RandomForestClassifier(n_jobs=-1,oob_score=True,max_features='sqrt',random_state=seed)
-gbc=GradientBoostingClassifier(warm_start=True,max_features='sqrt',random_state=seed)
-
+#gbc=GradientBoostingClassifier(warm_start=True,max_features='sqrt',random_state=seed)
+xgmodel = xgb.XGBClassifier(learning_rate =0.1,n_estimators=300,max_depth=3,min_child_weight=6\
+                            ,gamma=0,subsample=0.85,colsample_bytree=0.65,\
+                            objective= 'binary:logistic',nthread=-1,scale_pos_weight=1,seed=seed)
 
 
 #rf.fit(npi_prog.iloc[:,:-2],npi_prog.iloc[:,-1])
@@ -319,7 +329,7 @@ gbc=GradientBoostingClassifier(warm_start=True,max_features='sqrt',random_state=
 #print(sorted(feature_imp,key=lambda x:x[1],reverse=True))
 
 cv=StratifiedShuffleSplit(n_splits=3,test_size=0.1,random_state=25)
-models=[rf,gbc]
+models=[rf,xgmodel]
 for model in models:
     pass
 #    model_fit(model,npi_prog,y,performCV=True,cv=cv)     
@@ -327,12 +337,13 @@ for model in models:
 #########################  CV recall for GBM: 0.9155
 #########################  CV recall for LOG-L2: 
 
-cv_scorelog = cross_val_score(log, npi_prog,y, cv=cv, scoring='recall')
+#cv_scorelog = cross_val_score(log, npi_prog,y, cv=cv, scoring='recall')
+cv_scorexgb = cross_val_score(xgmodel, npi_prog,y, cv=cv, scoring='recall')
 
 #cv_score = cross_val_score(rf, npi_prog,y, cv=cv, scoring='recall')
 
 #
-param_grid={'n_estimators':[100,300,1000,3000,10000],'max_features':['sqrt','log2']}
+param_grid={'n_estimators':[100,300,500,700],'max_features':['sqrt','log2']}
 gs_rf=GridSearchCV(rf,param_grid=param_grid,n_jobs=-1,cv=cv,scoring='recall')
 
 #gs_rf.fit(npi_prog,y)
