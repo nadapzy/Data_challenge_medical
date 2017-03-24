@@ -285,27 +285,29 @@ from sklearn.metrics import accuracy_score,confusion_matrix,precision_score,reca
 from sklearn.model_selection import GridSearchCV,StratifiedShuffleSplit,cross_val_score
 import xgboost as xgb
 import matplotlib.pyplot as plt
-def model_fit(alg, X_train, y_train, performCV=True, cv_score='recall', printFeatureImportance=True, cv=3):
+from sklearn.model_selection import train_test_split
+def model_fit(alg, X, y, performCV=True, cv_score='recall', printFeatureImportance=True, cv=3,random_state=25):
     # function to diagnose the fit of model
     # we have precision in cross validation as the main metric, along with area under ROC, accuracy and recall.    
     # in the meanwhile, we will plot a feature importance chart
     #Fit the algorithm on the data
+    X_train,X_test,y_train,y_test=train_test_split(X,y,test_size=0.1,random_state=random_state)
     alg.fit(X_train, y_train)
         
-    #Predict training set:
-    dtrain_predictions = alg.predict(X_train)
-    dtrain_predprob = alg.predict_proba(X_train)[:,1]
+    #Predict test set:
+    dtrain_predictions = alg.predict(X_test)
+    dtrain_predprob = alg.predict_proba(X_test)[:,1]
     
     #Perform cross-validation:
     if performCV:
-        cv_score = cross_val_score(alg, X_train,y_train, cv=cv, scoring=cv_score,n_jobs=-1)
+        cv_score = cross_val_score(alg, X_train,y_train, cv=cv, scoring=cv_score)
     
     #Print model report:
     print "\nModel Report"
-    print "Accuracy : %.4g" % accuracy_score(y_train, dtrain_predictions)
-    print "Precision : %.4g" % precision_score(y_train, dtrain_predictions)
-    print "Recall : %.4g" % recall_score(y_train, dtrain_predictions)
-    print("Confusion Matrix (Train): ", confusion_matrix(y_train, dtrain_predictions))
+    print "Accuracy : %.4g" % accuracy_score(y_test, dtrain_predictions)
+    print "Precision : %.4g" % precision_score(y_test, dtrain_predictions)
+    print "Recall : %.4g" % recall_score(y_test, dtrain_predictions)
+    print("Confusion Matrix (Train): ", confusion_matrix(y_test, dtrain_predictions))
     
     if performCV:
         print "CV Score : Mean - %.7g | Std - %.7g | Min - %.7g | Max - %.7g" % (np.mean(cv_score),np.std(cv_score),np.min(cv_score),np.max(cv_score))
@@ -333,12 +335,12 @@ if fit_model:
     models=[rf,xgmodel]
     for model in models:
         model_fit(model,npi_prog,y,performCV=True,cv=cv)     
-#########################  CV recall for RF: 0.9788 
+#########################  CV recall for RF: 0.9788     precision 0.99235
 #########################  CV recall for XGBOOST: 0.9155
 #########################  CV recall for LOG-L2: 0.6333
 
 cv_scorerf = cross_val_score(rf, npi_prog,y, cv=cv, scoring='precision')
-model_fit(model,npi_prog,y,performCV=True,cv=cv)     
+model_fit(rf,npi_prog,y,performCV=False,cv=cv)     
 
 
 ######################## Feature Importance  #################
